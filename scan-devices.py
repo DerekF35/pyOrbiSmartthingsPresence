@@ -1,6 +1,18 @@
-import yaml
+import json
+import logging
 import re
 import requests
+import yaml
+
+from pynetgear_enhanced import NetgearEnhanced
+
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+logging.basicConfig(format='[%(levelname)s][%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+
+CONFIG_FILE='config.yml'
+CACHE_FILE='cache.yml'
 
 def setOnline( deviceName ):
 	hostPingRequest( deviceName , 'online')
@@ -13,23 +25,16 @@ def hostPingRequest( deviceName , state ):
 	app_id=config['host_pinger_app_id']
 	access_token=config['host_pinger_access_token']
 	myUrl = f"{ide}/api/smartapps/installations/{app_id}/statechanged/{state}?access_token={access_token}&ipadd={deviceName}"
-	print(myUrl)
 	r = requests.get(myUrl)
 
-
-CONFIG_FILE='config.yml'
-CACHE_FILE='cache.yml'
-
-config = yaml.load(open(CONFIG_FILE))
+config = yaml.load(open(CONFIG_FILE), Loader=yaml.FullLoader)
 
 try:
-	prevState = yaml.load(open(CACHE_FILE))
+	prevState = yaml.load(open(CACHE_FILE), Loader=yaml.FullLoader)
 except FileNotFoundError:
     prevState = { 'found': [] , 'not_found': [] }
 
-from pynetgear import Netgear
-
-netgear = Netgear( password=config['orbi_password'], ssl=False )
+netgear = NetgearEnhanced( password=config['orbi_password'] )
 
 currentDevices = netgear.get_attached_devices()
 
@@ -38,48 +43,37 @@ devicesNotFound = []
 
 for device in config['rules']:
 
-	print(device)
-	print(config['rules'][device])
+	logging.info("Checking device: " + device)
+	logging.debug( "Rules: " + json.dumps(config['rules'][device]) )
 
 	myFound = False
 
 	for i in currentDevices:
 		if re.match( config['rules'][device]['pattern'] , getattr( i , config['rules'][device]['field'] ) ):
-			print(i)
 			myFound = True
 
 	if myFound:
-		print("{0}: Device was found.  Adding to devicesFound".format( device ) )
+		logging.debug("Device %s was found.  Adding to devicesFound", device )
 		devicesFound.append(device)
 	else:
-		print("{0}: Device was NOT found.  Adding to devicesNotFound".format( device ) )
+		logging.debug("Device %s was NOT found.  Adding to devicesNotFound", device )
 		devicesNotFound.append(device)
 
-print('FOUND DEVICES')
-print('=============')
-print(devicesFound)
-
-print()
-
-print('NOT FOUND DEVICES')
-print('=================')
-print(devicesNotFound)
-
-
+logging.info('FOUND DEVICES: ' + json.dumps(devicesFound))
+logging.info('NOT FOUND DEVICES: ' + json.dumps(devicesNotFound))
 
 for device in devicesFound:
-	print(f"Checking device {device}")
 	if device in prevState['found']:
-		print('Device found in found cache.  Skipping action.')
+		logging.info(f'{device} found in found cache.  Skipping action.')
 	else:
-		print('Device not found in found cache. Taking action.')
+		logging.info(f'{device} not found in found cache. Taking action.')
 		setOnline(device)
 
 for device in devicesNotFound:
 	if device in prevState['not_found']:
-		print('Device found in not_found cache.  Skipping action.')
+		logging.info(f'{device} found in not_found cache.  Skipping action.')
 	else:
-		print('Device not found in not_found cache. Taking action.')
+		logging.info(f'{device} not found in not_found cache. Taking action.')
 		setOffline(device)
 
 with open(CACHE_FILE, 'w') as outfile:
