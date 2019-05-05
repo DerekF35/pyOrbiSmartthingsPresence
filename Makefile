@@ -14,16 +14,16 @@ build : remove
 	docker build -t $(APP_NAME) .
 
 up :
-	docker run -it -d --name $(APP_NAME) $(APP_NAME)
+	docker run  -d --name $(APP_NAME) $(APP_NAME)
 
 start :
 	docker start $(APP_NAME)
 
 run : start
-	docker exec -it $(APP_NAME) python scan-devices.py
+	docker exec $(APP_NAME) python scan-devices.py
 
 check-cache : start
-	docker exec -it $(APP_NAME) cat cache.yml
+	docker exec $(APP_NAME) cat cache.yml
 
 bash : start
-	docker exec -it $(APP_NAME) bash
+	docker exec $(APP_NAME) bash
