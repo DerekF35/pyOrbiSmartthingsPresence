@@ -14,7 +14,7 @@ build : remove
 	docker build -t $(APP_NAME) .
 
 up :
-	docker run  -d --name $(APP_NAME) $(APP_NAME)
+	docker run -i -d --name $(APP_NAME) $(APP_NAME)
 
 start :
 	docker start $(APP_NAME)

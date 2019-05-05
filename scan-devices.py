@@ -68,6 +68,7 @@ print(devicesNotFound)
 
 
 for device in devicesFound:
+	print(f"Checking device {device}")
 	if device in prevState['found']:
 		print('Device found in found cache.  Skipping action.')
 	else:
