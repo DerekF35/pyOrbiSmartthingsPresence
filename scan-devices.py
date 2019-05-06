@@ -31,6 +31,21 @@ def hostPingRequest( deviceName , state ):
 	myUrl = f"{ide}/api/smartapps/installations/{app_id}/statechanged/{state}?access_token={access_token}&ipadd={deviceName}"
 	r = requests.get(myUrl)
 
+def postSlack( channel , text ):
+	myUrl = config["slack_webhook_url"]
+	myData = {
+		"text": text
+	}
+	response = requests.post(
+	    myUrl, data=json.dumps(myData),
+	    headers={'Content-Type': 'application/json'}
+	)
+	if response.status_code != 200:
+	    raise ValueError(
+	        'Request to slack returned an error %s, the response is:\n%s'
+	        % (response.status_code, response.text)
+	    )
+
 config = yaml.load(open(CONFIG_FILE), Loader=yaml.FullLoader)
 
 try:
@@ -94,7 +109,6 @@ try:
 except FileNotFoundError:
 	devices = {}
 
-
 for i in currentDevices:
 	logging.debug("Device: " + json.dumps(i))
 	myMac = i.mac
@@ -111,6 +125,7 @@ for i in currentDevices:
 				'name': myName,
 				'type': myType,
 			}
+			postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
 	else:
 		myDevice ={
 			'first_seen': nowSeconds,
@@ -125,6 +140,8 @@ for i in currentDevices:
 		}
 		logging.debug(myDevice)
 		devices[myMac] = myDevice
+		postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
+
 
 with open(DEVICE_FILE, 'w') as outfile:
 	json.dump( devices, outfile , sort_keys=True, indent=4)
