@@ -14,7 +14,7 @@ build : remove
 	docker build -t $(APP_NAME) .
 
 up :
-	docker run -i -d --name $(APP_NAME) $(APP_NAME)
+	docker run -i -d --name $(APP_NAME) -v ~/orbi_device_history:/usr/src/app/device_history $(APP_NAME)
 
 start :
 	docker start $(APP_NAME)
@@ -26,4 +26,4 @@ check-cache : start
 	docker exec $(APP_NAME) cat cache.yml
 
 bash : start
-	docker exec $(APP_NAME) bash
+	docker exec -it $(APP_NAME) bash
