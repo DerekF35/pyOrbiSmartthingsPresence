@@ -55,7 +55,7 @@ except FileNotFoundError:
 
 netgear = NetgearEnhanced( password=config['orbi_password'] )
 
-currentDevices = netgear.get_attached_devices()
+currentDevices = netgear.get_attached_devices_2()
 nowSeconds = time.strftime('%Y%m%d_%H%M%S')
 
 devicesFound = []
