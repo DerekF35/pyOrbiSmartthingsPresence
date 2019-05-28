@@ -56,6 +56,10 @@ except FileNotFoundError:
 netgear = NetgearEnhanced( password=config['orbi_password'] )
 
 currentDevices = netgear.get_attached_devices_2()
+
+for device in currentDevices:
+	logging.debug("Device: " + json.dumps(device) )
+
 nowSeconds = time.strftime('%Y%m%d_%H%M%S')
 
 devicesFound = []
@@ -114,30 +118,51 @@ for i in currentDevices:
 	myMac = i.mac
 	myName = i.name
 	myType = i.type
-	if myMac in devices:
-		devices[myMac]["last_seen"] = nowSeconds
+	myModel = i.device_model
+	myDeviceType = i.device_type
+	mySSID = i.ssid
 
-		if devices[myMac]['name'] != myName or devices[myMac]['type'] != myType:
+	myDevicesAttrbs = {
+		'name': myName,
+		'type': myType,
+		'model': myModel,
+		'device_type': myDeviceType,
+		'ssid': mySSID,
+	}
+
+	myLastKnown = {}
+
+	for i in ['name','type','device_type','model','ssid']:
+		try:
+			myLastKnown[i] = devices[myMac][i]
+		except KeyError:
+			pass
+
+	if myMac in devices:
+		devices[myMac]['last_seen'] = nowSeconds
+
+		if myLastKnown != myDevicesAttrbs:
 			logging.info("Device update found for " + myMac)
-			devices[myMac]['name'] = myName
-			devices[myMac]['type'] = myType
-			devices[myMac]['attrbs'][nowSeconds] = {
-				'name': myName,
-				'type': myType,
-			}
-			postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
+
+			devices[myMac].update(myDevicesAttrbs)
+
+			# migrate old data
+			try:
+				devices[myMac]['attrb_history'] = devices[myMac].pop('attrbs')
+			except KeyError:
+				pass
+
+			devices[myMac]['attrb_history'][nowSeconds] = myDevicesAttrbs
+
+			postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
 	else:
-		myDevice ={
-			'first_seen': nowSeconds,
-			'last_seen': nowSeconds,
-			'name': myName,
-			'type': myType,
-			'attrbs': {}
-		}
-		myDevice['attrbs'][nowSeconds] = {
-			'name': myName,
-			'type': myType,
-		}
+		myDevice = myDevicesAttrbs
+
+		myDevice['first_seen'] = nowSeconds
+		myDevice['last_seen'] = nowSeconds
+		myDevice['attrb_history'] = {}
+		myDevice['attrb_history'][nowSeconds] = myDevicesAttrbs
+
 		logging.debug(myDevice)
 		devices[myMac] = myDevice
 		postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
