@@ -6,7 +6,6 @@ import re
 import requests
 import time
 import yaml
-import pprint
 import copy
 
 from pynetgear_enhanced import NetgearEnhanced
@@ -15,7 +14,6 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logging.basicConfig(format='[%(levelname)s][%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
-pp = pprint.PrettyPrinter(indent=4)
 
 CONFIG_FILE='config.yml'
 CACHE_FILE='cache.yml'
@@ -172,5 +170,4 @@ for i in currentDevices:
 
 
 with open(DEVICE_FILE, 'w') as outfile:
-	pp.pprint(devices)
 	json.dump( devices, outfile , sort_keys=True, indent=4)
