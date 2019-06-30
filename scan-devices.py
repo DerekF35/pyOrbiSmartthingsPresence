@@ -6,6 +6,8 @@ import re
 import requests
 import time
 import yaml
+import pprint
+import copy
 
 from pynetgear_enhanced import NetgearEnhanced
 
@@ -13,6 +15,7 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 logging.basicConfig(format='[%(levelname)s][%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+pp = pprint.PrettyPrinter(indent=4)
 
 CONFIG_FILE='config.yml'
 CACHE_FILE='cache.yml'
@@ -152,16 +155,16 @@ for i in currentDevices:
 			except KeyError:
 				pass
 
-			devices[myMac]['attrb_history'][nowSeconds] = myDevicesAttrbs
+			devices[myMac]['attrb_history'][nowSeconds] = copy.deepcopy(myDevicesAttrbs)
 
 			postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
 	else:
-		myDevice = myDevicesAttrbs
+		myDevice = copy.deepcopy(myDevicesAttrbs)
 
 		myDevice['first_seen'] = nowSeconds
 		myDevice['last_seen'] = nowSeconds
 		myDevice['attrb_history'] = {}
-		myDevice['attrb_history'][nowSeconds] = myDevicesAttrbs
+		myDevice['attrb_history'][nowSeconds] = copy.deepcopy(myDevicesAttrbs)
 
 		logging.debug(myDevice)
 		devices[myMac] = myDevice
@@ -169,4 +172,5 @@ for i in currentDevices:
 
 
 with open(DEVICE_FILE, 'w') as outfile:
+	pp.pprint(devices)
 	json.dump( devices, outfile , sort_keys=True, indent=4)
