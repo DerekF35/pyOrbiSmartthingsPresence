@@ -142,7 +142,13 @@ for i in currentDevices:
 	if myMac in devices:
 		devices[myMac]['last_seen'] = nowSeconds
 
-		if myLastKnown != myDevicesAttrbs:
+		updateMade = False
+
+		for x in ['name','model']:
+			if myLastKnown[x] != myDevicesAttrbs[x]:
+				updateMade = True
+
+		if updateMade:
 			logging.info("Device update found for " + myMac)
 
 			devices[myMac].update(myDevicesAttrbs)
