@@ -3,7 +3,7 @@ DB_LOCATION=/usr/src/app/device_history
 
 .PHONY : all stop remove build up start run check-cache bash
 
-all : build up run check-cache
+all : build up run check-cache check-devices stop
 
 stop :
 	docker container stop $(APP_NAME) || true
@@ -23,8 +23,14 @@ start :
 run : start
 	docker exec $(APP_NAME) python scan-devices.py
 
+rm-db :
+	sudo rm -f $(DB_LOCATION)/pyOrbiSmartthings.db
+
 check-cache : start
-	docker exec $(APP_NAME) cat cache.yml
+	docker exec -it $(APP_NAME) sqlite3 $(DB_LOCATION)/pyOrbiSmartthings.db "SELECT * FROM cache;"
+
+check-devices : start
+	docker exec -it $(APP_NAME) sqlite3 $(DB_LOCATION)/pyOrbiSmartthings.db "SELECT * FROM devices;"
 
 bash : start
 	docker exec -it $(APP_NAME) bash

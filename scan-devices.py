@@ -23,6 +23,7 @@ DATA_LOCATION='device_history/'
 DEVICE_FILE='device_history/devices.json'
 # TODO: Make this an input
 SLACK_NOTIFY=True
+TIMESTAMP_FORMAT="YYYY-MM-DD HH:MM"
 
 def setOnline( deviceName ):
 	hostPingRequest( deviceName , 'online')
@@ -147,13 +148,13 @@ for i in currentDevices:
 			pass
 
 	if myNewDevice:
-		c.execute( "INSERT INTO devices (mac , data , first_seen , last_seen) VALUES ( ? , ? , date('now') , date('now') )",(myMac,json.dumps(myDevicesAttrbs),) )
-		c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , date('now') , ? )",(myMac,json.dumps(myDevicesAttrbs),) )
+		c.execute( "INSERT INTO devices (mac , data , first_seen , last_seen) VALUES ( ? , ? , datetime('now') , datetime('now') )",(myMac,json.dumps(myDevicesAttrbs),) )
+		c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now') , ? )",(myMac,json.dumps(myDevicesAttrbs),) )
 		conn.commit()
 		if SLACK_NOTIFY:
 			postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
 	else:
-		c.execute( "UPDATE devices SET last_seen = date('now') WHERE mac = ?",(myMac,) )
+		c.execute( "UPDATE devices SET last_seen = datetime('now') WHERE mac = ?",(myMac,) )
 		conn.commit()
 
 		updateMade = False
@@ -166,7 +167,7 @@ for i in currentDevices:
 			logging.info("Device update found for " + myMac)
 
 			c.execute( "UPDATE devices SET data = ? WHERE mac = ?",(json.dumps(myDevicesAttrbs),myMac,) )
-			c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , date('now')  ? )",(myMac,json.dumps(myDevicesAttrbs),) )
+			c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now')  ? )",(myMac,json.dumps(myDevicesAttrbs),) )
 
 			if SLACK_NOTIFY:
 				postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
