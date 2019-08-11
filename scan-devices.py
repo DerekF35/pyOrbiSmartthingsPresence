@@ -7,17 +7,22 @@ import requests
 import time
 import yaml
 import copy
+import sqlite3
 
 from pynetgear_enhanced import NetgearEnhanced
 
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
+# TODO: input the logging level
 logging.basicConfig(format='[%(levelname)s][%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
 
 CONFIG_FILE='config.yml'
 CACHE_FILE='cache.yml'
+DATA_LOCATION='device_history/'
 DEVICE_FILE='device_history/devices.json'
+# TODO: Make this an input
+SLACK_NOTIFY=True
 
 def setOnline( deviceName ):
 	hostPingRequest( deviceName , 'online')
@@ -49,10 +54,15 @@ def postSlack( channel , text ):
 
 config = yaml.load(open(CONFIG_FILE), Loader=yaml.FullLoader)
 
-try:
-	prevState = yaml.load(open(CACHE_FILE), Loader=yaml.FullLoader)
-except FileNotFoundError:
-	prevState = { 'found': [] , 'not_found': [] }
+conn = sqlite3.connect(DATA_LOCATION + config['database'])
+conn.row_factory = lambda c, r: dict([(col[0], r[idx]) for idx, col in enumerate(c.description)])
+c = conn.cursor()
+
+
+c.execute("CREATE TABLE IF NOT EXISTS devices ( mac TEXT PRIMARY KEY , data BLOB, first_seen TEXT  , last_seen TEXT ); ")
+c.execute("CREATE TABLE IF NOT EXISTS device_history ( mac TEXT , timestamp TEXT , data BLOB ); ")
+c.execute("CREATE TABLE IF NOT EXISTS cache ( device TEXT PRIMARY KEY, found INTEGER  ); ")
+conn.commit()
 
 netgear = NetgearEnhanced( password=config['orbi_password'] )
 
@@ -62,9 +72,6 @@ for device in currentDevices:
 	logging.debug("Device: " + json.dumps(device) )
 
 nowSeconds = time.strftime('%Y%m%d_%H%M%S')
-
-devicesFound = []
-devicesNotFound = []
 
 for device in config['rules']:
 
@@ -77,42 +84,33 @@ for device in config['rules']:
 		if re.match( config['rules'][device]['pattern'] , getattr( i , config['rules'][device]['field'] ) ):
 			myFound = True
 
-	if myFound:
-		logging.debug("Device %s was found.  Adding to devicesFound", device )
-		devicesFound.append(device)
+	logging.debug("Device %s current status is found = %s.", device , myFound )
+
+	cacheFound = None
+
+	c.execute('SELECT found FROM cache WHERE device = ?' , (device,) )
+	r = c.fetchone()
+	if r is not None:
+		if r['found'] == 1 :
+			cacheFound = True
+		else:
+			cacheFound = False
+
+	logging.debug("Device %s cache status is found = %s.", device , cacheFound )
+
+	if cacheFound is not None and cacheFound == myFound:
+		logging.info(f'{device} found matches cache.  Skipping action.')
 	else:
-		logging.debug("Device %s was NOT found.  Adding to devicesNotFound", device )
-		devicesNotFound.append(device)
+		logging.info(f'{device} found mismatch with cache.  Taking action.')
+		if myFound:
+			logging.info(f'{device} setting online.')
+			setOnline(device)
+		else:
+			logging.info(f'{device} setting offline.')
+			setOffline(device)
 
-logging.info('FOUND DEVICES: ' + json.dumps(devicesFound))
-logging.info('NOT FOUND DEVICES: ' + json.dumps(devicesNotFound))
-
-for device in devicesFound:
-	if device in prevState['found']:
-		logging.info(f'{device} found in found cache.  Skipping action.')
-	else:
-		logging.info(f'{device} not found in found cache. Taking action.')
-		setOnline(device)
-
-for device in devicesNotFound:
-	if device in prevState['not_found']:
-		logging.info(f'{device} found in not_found cache.  Skipping action.')
-	else:
-		logging.info(f'{device} not found in not_found cache. Taking action.')
-		setOffline(device)
-
-with open(CACHE_FILE, 'w') as outfile:
-	myCache = {
-		'found': devicesFound,
-		'not_found': devicesNotFound
-	}
-	yaml.dump( myCache, outfile, default_flow_style=False)
-
-try:
-	with open(DEVICE_FILE, "r") as read_file:
-		devices = json.load(read_file)
-except FileNotFoundError:
-	devices = {}
+		c.execute("INSERT OR REPLACE INTO cache ( device , found ) VALUES ( ? , ? )" , ( device, myFound ,) )
+		conn.commit()
 
 for i in currentDevices:
 	logging.debug("Device: " + json.dumps(i))
@@ -131,16 +129,32 @@ for i in currentDevices:
 		'ssid': mySSID,
 	}
 
-	myLastKnown = {}
+	myNewDevice = False
+	myLastKnown = c.execute("SELECT data FROM devices WHERE mac = ?", (myMac,) ).fetchone()
+
+	if myLastKnown is None:
+		myLastKnown = {}
+		myNewDevice = True
+	else:
+		myLastKnown = json.loads(myLastKnown['data'])
+
+	logging.debug("Last Known Device: " + json.dumps(myLastKnown))
 
 	for i in ['name','type','device_type','model','ssid']:
 		try:
-			myLastKnown[i] = devices[myMac][i]
+			myLastKnown[i] = myDevicesAttrbs[i]
 		except KeyError:
 			pass
 
-	if myMac in devices:
-		devices[myMac]['last_seen'] = nowSeconds
+	if myNewDevice:
+		c.execute( "INSERT INTO devices (mac , data , first_seen , last_seen) VALUES ( ? , ? , date('now') , date('now') )",(myMac,json.dumps(myDevicesAttrbs),) )
+		c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , date('now') , ? )",(myMac,json.dumps(myDevicesAttrbs),) )
+		conn.commit()
+		if SLACK_NOTIFY:
+			postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
+	else:
+		c.execute( "UPDATE devices SET last_seen = date('now') WHERE mac = ?",(myMac,) )
+		conn.commit()
 
 		updateMade = False
 
@@ -151,29 +165,10 @@ for i in currentDevices:
 		if updateMade:
 			logging.info("Device update found for " + myMac)
 
-			devices[myMac].update(myDevicesAttrbs)
+			c.execute( "UPDATE devices SET data = ? WHERE mac = ?",(json.dumps(myDevicesAttrbs),myMac,) )
+			c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , date('now')  ? )",(myMac,json.dumps(myDevicesAttrbs),) )
 
-			# migrate old data
-			try:
-				devices[myMac]['attrb_history'] = devices[myMac].pop('attrbs')
-			except KeyError:
-				pass
+			if SLACK_NOTIFY:
+				postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
 
-			devices[myMac]['attrb_history'][nowSeconds] = copy.deepcopy(myDevicesAttrbs)
-
-			postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
-	else:
-		myDevice = copy.deepcopy(myDevicesAttrbs)
-
-		myDevice['first_seen'] = nowSeconds
-		myDevice['last_seen'] = nowSeconds
-		myDevice['attrb_history'] = {}
-		myDevice['attrb_history'][nowSeconds] = copy.deepcopy(myDevicesAttrbs)
-
-		logging.debug(myDevice)
-		devices[myMac] = myDevice
-		postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
-
-
-with open(DEVICE_FILE, 'w') as outfile:
-	json.dump( devices, outfile , sort_keys=True, indent=4)
+conn.close()

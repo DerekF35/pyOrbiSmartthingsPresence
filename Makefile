@@ -1,4 +1,5 @@
 APP_NAME=py-orbi-smartthings-presence
+DB_LOCATION=/usr/src/app/device_history
 
 .PHONY : all stop remove build up start run check-cache bash
 
@@ -14,7 +15,7 @@ build : remove
 	docker build -t $(APP_NAME) .
 
 up :
-	docker run -i -d --name $(APP_NAME) -v ~/orbi_device_history:/usr/src/app/device_history $(APP_NAME)
+	docker run -i -d --name $(APP_NAME) -v ~/orbi_device_history:$(DB_LOCATION) $(APP_NAME)
 
 start :
 	docker start $(APP_NAME)
@@ -27,3 +28,6 @@ check-cache : start
 
 bash : start
 	docker exec -it $(APP_NAME) bash
+
+sql : start
+	docker exec -it $(APP_NAME) sqlite3 $(DB_LOCATION)/pyOrbiSmartthings.db
