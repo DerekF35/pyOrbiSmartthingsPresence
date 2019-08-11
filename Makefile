@@ -24,7 +24,7 @@ run : start
 	docker exec $(APP_NAME) python scan-devices.py
 
 rm-db :
-	sudo rm -f $(DB_LOCATION)/pyOrbiSmartthings.db
+	sudo rm -f ~/orbi_device_history/pyOrbiSmartthings.db
 
 check-cache : start
 	docker exec -it $(APP_NAME) sqlite3 $(DB_LOCATION)/pyOrbiSmartthings.db "SELECT * FROM cache;"
