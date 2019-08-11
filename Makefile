@@ -14,6 +14,7 @@ remove : stop
 build : remove
 	docker build -t $(APP_NAME) .
 
+#TODO: ~/orbi_device_history should be config
 up :
 	docker run -i -d --name $(APP_NAME) -v ~/orbi_device_history:$(DB_LOCATION) $(APP_NAME)
 

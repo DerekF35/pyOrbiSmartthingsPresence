@@ -148,13 +148,13 @@ for i in currentDevices:
 			pass
 
 	if myNewDevice:
-		c.execute( "INSERT INTO devices (mac , data , first_seen , last_seen) VALUES ( ? , ? , datetime('now') , datetime('now') )",(myMac,json.dumps(myDevicesAttrbs),) )
-		c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now') , ? )",(myMac,json.dumps(myDevicesAttrbs),) )
+		c.execute( "INSERT INTO devices (mac , data , first_seen , last_seen) VALUES ( ? , ? , datetime('now', 'localtime') , datetime('now', 'localtime') )",(myMac,json.dumps(myDevicesAttrbs),) )
+		c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now', 'localtime') , ? )",(myMac,json.dumps(myDevicesAttrbs),) )
 		conn.commit()
 		if SLACK_NOTIFY:
 			postSlack( config["slack_channel"] , f"NEW DEVICE CONNECTED: `{myMac}`\n```\nName: {myName}\nConnection: {myType}```")
 	else:
-		c.execute( "UPDATE devices SET last_seen = datetime('now') WHERE mac = ?",(myMac,) )
+		c.execute( "UPDATE devices SET last_seen = datetime('now', 'localtime') WHERE mac = ?",(myMac,) )
 		conn.commit()
 
 		updateMade = False
@@ -167,7 +167,7 @@ for i in currentDevices:
 			logging.info("Device update found for " + myMac)
 
 			c.execute( "UPDATE devices SET data = ? WHERE mac = ?",(json.dumps(myDevicesAttrbs),myMac,) )
-			c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now')  ? )",(myMac,json.dumps(myDevicesAttrbs),) )
+			c.execute( "INSERT INTO device_history (mac , timestamp , data) VALUES ( ? , datetime('now', 'localtime')  ? )",(myMac,json.dumps(myDevicesAttrbs),) )
 
 			if SLACK_NOTIFY:
 				postSlack( config["slack_channel"] , f"DEVICE UPDATED: `{myMac}`\n```\nName: {myName}\nDevice Type: {myDeviceType}\nConnection: {myType}\nModel: {myModel}\nSSID: {mySSID}```")
