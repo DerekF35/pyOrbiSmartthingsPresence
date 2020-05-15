@@ -65,7 +65,7 @@ c.execute("CREATE TABLE IF NOT EXISTS device_history ( mac TEXT , timestamp TEXT
 c.execute("CREATE TABLE IF NOT EXISTS cache ( device TEXT PRIMARY KEY, found INTEGER  ); ")
 conn.commit()
 
-netgear = NetgearEnhanced( password=config['orbi_password'] )
+netgear = NetgearEnhanced( url=config['orbi_host'] , password=config['orbi_password'], force_login_v2=True )
 
 currentDevices = netgear.get_attached_devices_2()
 
